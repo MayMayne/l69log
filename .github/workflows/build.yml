@@ -1,0 +1,32 @@
+name: Build L69Log arm64
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
+            -miphoneos-version-min=15.0 -dynamiclib -fobjc-arc -fblocks -O2 \
+            -Wall -Wextra -Wno-deprecated-declarations \
+            -framework Foundation -framework AVFoundation \
+            -install_name @rpath/L69Log.dylib \
+            L69Log.m -o build/L69Log.dylib 2>&1 | tee build/compiler.log
+          codesign --force --sign - --timestamp=none build/L69Log.dylib
+          codesign --verify --strict --verbose=2 build/L69Log.dylib
+          shasum -a 256 build/L69Log.dylib | tee build/SHA256SUMS
+          wc -c build/L69Log.dylib | tee build/size.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: L69Log-arm64
+          path: build/
+          if-no-files-found: error
